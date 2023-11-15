@@ -1,0 +1,68 @@
+
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"  &&  $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"
+      changes:
+        - mysql/*
+        - mongodb/**/*
+
+stages:
+  - mysql
+  - mongo
+
+
+
+setup_play:
+  stage: .pre
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@github.com/devops/playbook  $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/$CI_CONCURRENT_ID/$CI_PROJECT_NAMESPACE/play
+
+
+
+
+mysql_job:
+  stage: mysql
+  variables:
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/$CI_CONCURRENT_ID/$CI_PROJECT_NAMESPACE/play/$CI_PROJECT_NAME
+  script:
+    - cd ..
+    - docker compose up ci-mysql -d
+    - ansible-playbook  import_mysql_files.yml
+  rules:
+    - changes:
+        - mysql/*
+
+
+mongo_job:
+  stage: mongo
+  variables:
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/$CI_CONCURRENT_ID/$CI_PROJECT_NAMESPACE/play/$CI_PROJECT_NAME
+  script:
+    - cd ..
+    - docker compose up ci-mongo -d
+    - ansible-playbook  import_mongo_files.yml
+  rules:
+    - changes:
+        - mongodb/**/*
+
+
+
+
+cleanup_job:
+  stage: .post
+  variables:
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/$CI_CONCURRENT_ID/$CI_PROJECT_NAMESPACE/play/$CI_PROJECT_NAME
+    GIT_STRATEGY: none
+  script:
+    - cd ..
+    - docker compose down
+    - rm -rf $CI_BUILDS_DIR/$CI_RUNNER_SHORT_TOKEN/$CI_CONCURRENT_ID/$CI_PROJECT_NAMESPACE
+  when: always
+
+
+
+
+
